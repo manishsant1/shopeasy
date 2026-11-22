@@ -89,3 +89,5 @@ To reset the data, drop the four tables in the Neon SQL editor and restart the s
 ```sql
 DROP TABLE order_items, orders, products, categories;
 ```
+
+<!-- CI pipeline test: dummy change 2026-11-22T17:09:42Z -->
