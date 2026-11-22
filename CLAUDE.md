@@ -62,12 +62,12 @@ npm run test:e2e   # builds dist/, resets the TEST database, starts the app on :
 
 Live at https://shopeasy-ecom-7k2.azurewebsites.net (App Service B1, Linux, Node 22, Always On; resource group `shopeasy-ecom-7k2-rg`, plan `shopeasy-ecom-7k2-plan`, region `centralindia` since `eastus` had no B1 quota). It uses the **same Neon database as `.env`** (the dev DB), and has the `OTEL_*` Grafana settings.
 
-- Deployed with the `build-fullstack-azure` skill's `deploy-azure.mjs` (idempotent; re-run to redeploy). The stock script needs `BETTER_AUTH_SECRET` (this app has no auth) and breaks on the space in `C:\Program Files\...\az.cmd` and on `--startup-file npm start`. A patched copy was used; fix the skill before reusing it.
+- Deployed with the `build-fullstack-azure` skill's `deploy-azure.mjs` (idempotent; re-run to redeploy). The stock script needs `BETTER_AUTH_SECRET` (this app has no auth) and breaks on the space in `C:\Program Files\...\az.cmd` and on `--startup-file npm start`. The patched copy lived in a temporary scratchpad and is gone, so fix the skill (or re-patch a copy) before redeploying.
 - The zip is built locally: `dist/`, `server/`, `shared/`, `package.json`, plus `npm ci --omit=dev` in a staging folder, and is sent with `az webapp deploy --type zip`. Do not rely on Azure's Oryx build (Vite is a devDependency).
 - No `smoke` script exists here. After a deploy, check `/api/health`, `/api/products` and `/cart` (SPA fallback) with curl. Do not run the Playwright suite against it: it resets the database.
-- The old host, if any, was not touched.
 
 ## Git and CI
 
+- Remote: `origin` = https://github.com/manishsant1/shopeasy.git (public), branch `main`.
 - `.github/workflows/e2e.yml` runs the Playwright suite on pushes to `main` and on pull requests. It needs a repository secret `TEST_DATABASE_URL` (the Neon **test** database, never the dev/prod one). In CI there is no `.env.test`; `playwright.config.js` falls back to the `DATABASE_URL` environment variable.
 - Ignored on purpose because they hold real credentials: `.env`, `.env.test`, `postgressconnectionstring.txt`, `agent creation and usage.txt`.
