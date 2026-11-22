@@ -90,4 +90,12 @@ To reset the data, drop the four tables in the Neon SQL editor and restart the s
 DROP TABLE order_items, orders, products, categories;
 ```
 
-<!-- CI pipeline test: dummy change 2026-11-22T17:09:42Z -->
+## Tests and CI
+
+```
+npm run lint        # ESLint
+npm run test:unit   # unit tests for shared/ (node:test)
+npm run test:e2e    # Playwright UI + API tests against a separate Neon TEST database
+```
+
+The e2e suite reads the test database URL from `.env.test` (`DATABASE_URL=...`, gitignored) and resets that database on every run, so never point it at real data. GitHub Actions (`.github/workflows/ci.yml`) runs lint, unit, build, audit and e2e on every push and pull request; see `CLAUDE.md` for details and the opt-in Azure deploy.

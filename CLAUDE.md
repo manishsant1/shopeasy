@@ -58,7 +58,7 @@ npm run test:e2e   # builds dist/, resets the TEST database, starts the app on :
 - Config: `playwright.config.js`. The test DB URL lives in `.env.test` (gitignored); `.env` is never loaded by the tests. `tests/support/global-setup.js` refuses to run if `.env.test` and `.env` point at the same DB host, then truncates `orders`/`order_items` and resets product stock and prices to `server/seed.js`.
 - Each test gets a fresh browser context, so a new `X-Client-Id`, cart and wishlist. Tests that change stock use a product no other test uses (the Winter Jacket `p8` in the stock-conflict test), so keep that isolation when adding tests.
 - The test DB is remote, so parallel checkouts queue on latency. `workers: 2`, generous timeouts and one retry are deliberate; 4 workers was flaky.
-- Specs assume the seed catalog (20 products, `p4` out of stock). Report: `npx playwright show-report`.
+- Specs assume the seed catalog (20 products, `p4` out of stock).
 
 ## Azure deployment
 
