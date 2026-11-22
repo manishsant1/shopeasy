@@ -78,6 +78,7 @@ router.post('/orders', async (req, res) => {
 router.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
 // Express 5 forwards errors thrown in handlers (sync or async) to this handler.
+// eslint-disable-next-line no-unused-vars -- Express only treats a 4-argument function as an error handler
 router.use((err, req, res, next) => {
   if (err instanceof HttpError) {
     return res.status(err.status).json({ error: err.message, details: err.details });

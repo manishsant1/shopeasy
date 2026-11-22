@@ -8,12 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev      # dev server on http://localhost:3000 (API + Vite with HMR, one process)
 npm run build    # build the frontend into dist/
 npm start        # production: serves the API and dist/ on PORT (default 3000)
+npm run lint     # ESLint (flat config in eslint.config.js)
+npm run test:unit # node:test unit tests for shared/ (tests/unit)
 npm run test:e2e # Playwright UI + API tests (see "UI tests" below)
 ```
 
 Run one test or file: `npx playwright test tests/e2e/checkout.spec.js` or `npx playwright test -g "happy path"`. Add `--headed` to watch, `--ui` to step through, `npx playwright show-report` for the last HTML report. Every run rebuilds `dist/` and resets the test database.
 
-There is no linter or formatter configured. Verify changes with `npm run build`, `npm run test:e2e`, and by exercising the API with curl against a running server.
+There is no formatter. Before pushing run `npm run lint`, `npm run test:unit`, `npm run build` and `npm run test:e2e`; CI runs the same stages. Single unit test file: `node --test tests/unit/shared.test.js`.
 
 Requires Node >= 22.9 (uses `--env-file-if-exists` and the global `WebSocket` that Neon's Pool needs). `DATABASE_URL` (a Neon Postgres connection string) must be set in `.env` or the environment, otherwise the server exits on startup. See `.env.example`.
 
@@ -69,5 +71,8 @@ Live at https://shopeasy-ecom-7k2.azurewebsites.net (App Service B1, Linux, Node
 ## Git and CI
 
 - Remote: `origin` = https://github.com/manishsant1/shopeasy.git (public), branch `main`.
-- `.github/workflows/e2e.yml` runs the Playwright suite on pushes to `main` and on pull requests. It needs a repository secret `TEST_DATABASE_URL` (the Neon **test** database, never the dev/prod one). In CI there is no `.env.test`; `playwright.config.js` falls back to the `DATABASE_URL` environment variable.
+- `.github/workflows/ci.yml` runs on pushes to `main`, pull requests and manual dispatch. Stages: **lint**, **unit**, **build** (run in parallel) -> **e2e** (needs those three); **audit** (`npm audit --omit=dev --audit-level=high`, independent) ; **deploy** (needs e2e + audit).
+- e2e needs a repository secret `TEST_DATABASE_URL` (the Neon **test** database, never dev/prod). In CI there is no `.env.test`; `playwright.config.js` falls back to the `DATABASE_URL` environment variable. e2e runs are serialized with a job-level `concurrency` group because they share and reset one database.
+- **deploy is opt-in**: it runs only on pushes to `main` when the repository variable `DEPLOY_TO_AZURE` is `true`, and needs a repository secret `AZURE_CREDENTIALS` (service principal JSON from `az ad sp create-for-rbac --sdk-auth` scoped to `shopeasy-ecom-7k2-rg`). It builds the same zip as the manual deploy, deploys with `azure/webapps-deploy`, then curls `/api/health`, `/api/products` and `/cart`. Until both are set the job shows as skipped.
+- The audit fails on high/critical only; two moderate `react-router` advisories remain (fix is a breaking v7 upgrade).
 - Ignored on purpose because they hold real credentials: `.env`, `.env.test`, `postgressconnectionstring.txt`, `agent creation and usage.txt`.

@@ -1,0 +1,141 @@
+name: CI
+
+# Pipeline:  lint ─┐
+#            unit ─┼─> e2e ─> deploy (Azure, opt-in)
+#           build ─┘
+#           audit (independent, security gate)
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run lint
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run test:unit
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  audit:
+    name: Security audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      # Fails on high/critical advisories in production dependencies.
+      - run: npm audit --omit=dev --audit-level=high
+
+  e2e:
+    name: E2E tests (Playwright)
+    needs: [lint, unit, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # All runs share one test database and reset it, so only one e2e job may run at a time.
+    concurrency:
+      group: e2e-test-database
+      cancel-in-progress: false
+    env:
+      # Repository secret holding the Neon TEST database URL (never the dev/prod one).
+      DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+      PORT: '3100'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+  deploy:
+    name: Deploy to Azure
+    needs: [e2e, audit]
+    # Opt-in: runs only on pushes to main, and only when the repository variable
+    # DEPLOY_TO_AZURE is 'true' and the AZURE_CREDENTIALS secret exists (see CLAUDE.md).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_TO_AZURE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      AZURE_WEBAPP_NAME: shopeasy-ecom-7k2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci
+      - run: npm run build
+      # Same package as the manual deploy: built dist/ plus production-only dependencies
+      # (Azure's Oryx build is not used because Vite is a devDependency).
+      - name: Stage production package
+        run: |
+          mkdir stage
+          cp -r dist server shared package.json package-lock.json stage/
+          npm ci --omit=dev --prefix stage
+          (cd stage && zip -qr ../app.zip .)
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: app.zip
+      - name: Smoke test the live site
+        run: |
+          url="https://${AZURE_WEBAPP_NAME}.azurewebsites.net"
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url/api/health" || true)
+            echo "attempt $i: /api/health -> $code"
+            [ "$code" = "200" ] && break
+            sleep 10
+          done
+          [ "$code" = "200" ]
+          curl -fsS "$url/api/products" | head -c 120; echo
+          curl -fsS -o /dev/null "$url/cart"
