@@ -66,3 +66,8 @@ Live at https://shopeasy-ecom-7k2.azurewebsites.net (App Service B1, Linux, Node
 - The zip is built locally: `dist/`, `server/`, `shared/`, `package.json`, plus `npm ci --omit=dev` in a staging folder, and is sent with `az webapp deploy --type zip`. Do not rely on Azure's Oryx build (Vite is a devDependency).
 - No `smoke` script exists here. After a deploy, check `/api/health`, `/api/products` and `/cart` (SPA fallback) with curl. Do not run the Playwright suite against it: it resets the database.
 - The old host, if any, was not touched.
+
+## Git and CI
+
+- `.github/workflows/e2e.yml` runs the Playwright suite on pushes to `main` and on pull requests. It needs a repository secret `TEST_DATABASE_URL` (the Neon **test** database, never the dev/prod one). In CI there is no `.env.test`; `playwright.config.js` falls back to the `DATABASE_URL` environment variable.
+- Ignored on purpose because they hold real credentials: `.env`, `.env.test`, `postgressconnectionstring.txt`, `agent creation and usage.txt`.
