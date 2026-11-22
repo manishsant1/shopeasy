@@ -1,0 +1,12 @@
+node_modules
+dist
+data
+.env
+.env.test
+test-results
+playwright-report
+postgressconnectionstring.txt
+agent creation and usage.txt
+training.zip
+training/
+.claude/settings.local.json
